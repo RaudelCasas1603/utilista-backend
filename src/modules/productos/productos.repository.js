@@ -1,7 +1,7 @@
 const pool = require("../../config/db");
 
 async function getAllProductos() {
-  const res = await pool.query(`SELECT * FROM productos`);
+  const res = await pool.query(`SELECT * FROM productos ORDER BY id ASC`);
   return res.rows;
 }
 
@@ -26,10 +26,9 @@ async function createProducto(data) {
       nombre,
       precio_compra,
       precio_venta,
-      porcentaje_ganancia,
       id_proveedor,
       id_categoria
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7)
     RETURNING *`,
     [
       data.codigo_producto,
@@ -37,7 +36,6 @@ async function createProducto(data) {
       data.nombre,
       data.precio_compra,
       data.precio_venta,
-      data.porcentaje_ganancia,
       data.id_proveedor,
       data.id_categoria,
     ],

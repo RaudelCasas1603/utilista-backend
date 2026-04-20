@@ -55,6 +55,21 @@ async function updateEstatus(req, res) {
   }
 }
 
+async function getStatsByProveedor(req, res) {
+  try {
+    const { id } = req.params;
+    const stats = await service.getStatsByProveedor(id);
+    res.json(stats);
+  } catch (error) {
+    console.error("Error al obtener estadísticas del proveedor:", error);
+    res.status(500).json({
+      message:
+        error.message ||
+        "No se pudieron obtener las estadísticas del proveedor",
+    });
+  }
+}
+
 module.exports = {
   getProveedores,
   getProveedorById,
@@ -62,4 +77,5 @@ module.exports = {
   updateProveedor,
   deleteProveedor,
   updateEstatus,
+  getStatsByProveedor,
 };

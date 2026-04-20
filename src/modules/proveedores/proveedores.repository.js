@@ -91,6 +91,27 @@ async function remove(id) {
   return res.rows[0];
 }
 
+async function getStatsByProveedor(id) {
+  const res = await pool.query(
+    `
+    SELECT
+      COUNT(p.id) AS total_productos,
+      ROUND(
+        CASE
+          WHEN (SELECT COUNT(*) FROM productos) = 0 THEN 0
+          ELSE (COUNT(p.id) * 100.0 / (SELECT COUNT(*) FROM productos))
+        END,
+        2
+      ) AS porcentaje_participacion
+    FROM productos p
+    WHERE p.id_proveedor = $1
+    `,
+    [id],
+  );
+
+  return res.rows[0];
+}
+
 module.exports = {
   getAll,
   getById,
@@ -98,4 +119,5 @@ module.exports = {
   update,
   updateEstatus,
   remove,
+  getStatsByProveedor,
 };

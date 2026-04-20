@@ -50,7 +50,7 @@ async function getInventarioByProductoId(id_producto) {
       i.stock_actual,
       i.stock_minimo,
       i.stock_deseado,
-    p.codigo_producto,
+      p.codigo_producto,
       p.codigo_barras,
       p.precio_venta,
       p.nombre
@@ -112,6 +112,37 @@ async function updateInventario(id, data) {
   return result.rows[0];
 }
 
+async function createMovimientoInventario(data) {
+  const result = await pool.query(
+    `
+    INSERT INTO movimientos_inventario (
+      id_producto,
+      tipo_movimiento,
+      cantidad,
+      stock_anterior,
+      stock_nuevo,
+      motivo,
+      id_usuario,
+      id_venta
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    RETURNING *
+    `,
+    [
+      data.id_producto,
+      data.tipo_movimiento,
+      data.cantidad,
+      data.stock_anterior,
+      data.stock_nuevo,
+      data.motivo,
+      data.id_usuario,
+      data.id_venta,
+    ],
+  );
+
+  return result.rows[0];
+}
+
 async function deleteInventario(id) {
   const result = await pool.query(
     `DELETE FROM inventario WHERE id = $1 RETURNING *`,
@@ -126,5 +157,6 @@ module.exports = {
   getInventarioByProductoId,
   createInventario,
   updateInventario,
+  createMovimientoInventario,
   deleteInventario,
 };

@@ -3,6 +3,7 @@ const router = express.Router();
 const controller = require("./productos.controller");
 
 router.get("/", controller.getProductos);
+router.get("/:id/historial-ventas", controller.getHistorialVentasUltimos7Dias);
 router.get("/:id", controller.getProductoById);
 router.post("/", controller.createProducto);
 router.put("/:id", controller.updateProducto);

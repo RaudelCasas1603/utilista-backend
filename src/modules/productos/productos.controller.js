@@ -54,6 +54,17 @@ async function getByCodigoBarras(req, res) {
   }
 }
 
+async function getHistorialVentasUltimos7Dias(req, res) {
+  try {
+    const data = await service.obtenerHistorialVentasUltimos7Dias(
+      req.params.id,
+    );
+    res.json(data);
+  } catch (error) {
+    res.status(404).json({ error: error.message });
+  }
+}
+
 module.exports = {
   getProductos,
   getProductoById,
@@ -61,4 +72,5 @@ module.exports = {
   updateProducto,
   deleteProducto,
   getByCodigoBarras,
+  getHistorialVentasUltimos7Dias,
 };

@@ -8,6 +8,7 @@ const { proveedoresRoutes } = require("./modules/proveedores");
 const { clientesRoutes } = require("./modules/clientes");
 const { categoriasRoutes } = require("./modules/categorias");
 const { configuracionRoutes } = require("./modules/configuracion");
+const { ventasRoutes } = require("./modules/ventas");
 
 const app = express();
 
@@ -42,5 +43,6 @@ app.use("/api/proveedores", proveedoresRoutes);
 app.use("/api/clientes", clientesRoutes);
 app.use("/api/categorias", categoriasRoutes);
 app.use("/api/configuracion", configuracionRoutes);
+app.use("/api/ventas", ventasRoutes);
 
 module.exports = app;

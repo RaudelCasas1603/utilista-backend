@@ -51,6 +51,13 @@ async function cambiarEstatus(id, estatus) {
   return await repo.updateEstatus(id, estatus);
 }
 
+async function getStatsByProveedor(id) {
+  const existente = await repo.getById(id);
+  if (!existente) throw new Error("Proveedor no encontrado");
+
+  return await repo.getStatsByProveedor(id);
+}
+
 module.exports = {
   obtenerProveedores,
   obtenerProveedorPorId,
@@ -58,4 +65,5 @@ module.exports = {
   actualizarProveedor,
   eliminarProveedor,
   cambiarEstatus,
+  getStatsByProveedor,
 };

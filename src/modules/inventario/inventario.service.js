@@ -51,6 +51,8 @@ async function actualizarInventario(id, data) {
     throw new Error("Registro de inventario no encontrado");
   }
 
+  const stockAnterior = Number(existente.stock_actual);
+
   const inventarioActualizado = {
     id_producto: Number(data.id_producto ?? existente.id_producto),
     stock_actual: Number(data.stock_actual ?? existente.stock_actual),
@@ -58,7 +60,25 @@ async function actualizarInventario(id, data) {
     stock_deseado: Number(data.stock_deseado ?? existente.stock_deseado),
   };
 
-  return await repo.updateInventario(id, inventarioActualizado);
+  const inventario = await repo.updateInventario(id, inventarioActualizado);
+
+  const stockNuevo = Number(inventario.stock_actual);
+  const diferencia = stockNuevo - stockAnterior;
+
+  if (diferencia !== 0) {
+    await repo.createMovimientoInventario({
+      id_producto: inventario.id_producto,
+      tipo_movimiento: diferencia > 0 ? "entrada" : "salida",
+      cantidad: Math.abs(diferencia),
+      stock_anterior: stockAnterior,
+      stock_nuevo: stockNuevo,
+      motivo: data.motivo?.trim() || "Ajuste manual de inventario",
+      id_usuario: data.id_usuario ? Number(data.id_usuario) : null,
+      id_venta: data.id_venta ? Number(data.id_venta) : null,
+    });
+  }
+
+  return inventario;
 }
 
 async function eliminarInventario(id) {

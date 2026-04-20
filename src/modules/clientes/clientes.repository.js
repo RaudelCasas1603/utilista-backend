@@ -14,6 +14,26 @@ async function getById(id) {
   return result.rows[0];
 }
 
+async function getUltimasVentasPorCliente(idCliente, limit = 8) {
+  const result = await pool.query(
+    `
+      SELECT
+        id,
+        folio AS ticket,
+        fecha_hora,
+        total
+      FROM ventas
+      WHERE id_cliente = $1
+        AND estatus = 'finalizada'
+      ORDER BY fecha_hora DESC
+      LIMIT $2
+    `,
+    [idCliente, limit],
+  );
+
+  return result.rows;
+}
+
 async function create(data) {
   const result = await pool.query(
     `
@@ -97,6 +117,7 @@ async function remove(id) {
 module.exports = {
   getAll,
   getById,
+  getUltimasVentasPorCliente,
   create,
   update,
   updateEstatus,

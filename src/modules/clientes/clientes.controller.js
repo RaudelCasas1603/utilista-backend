@@ -99,6 +99,28 @@ async function updateEstatus(req, res) {
   }
 }
 
+async function getUltimasVentasCliente(req, res) {
+  try {
+    const { id } = req.params;
+    const limit = Number(req.query.limit) || 8;
+
+    if (!id || isNaN(Number(id))) {
+      return res.status(400).json({
+        message: "El id del cliente no es válido.",
+      });
+    }
+
+    const ventas = await service.obtenerUltimasVentasCliente(Number(id), limit);
+
+    return res.status(200).json(ventas);
+  } catch (error) {
+    console.error("Error al obtener las últimas ventas del cliente:", error);
+    return res.status(500).json({
+      message: "Error interno al obtener las ventas del cliente.",
+    });
+  }
+}
+
 module.exports = {
   getClientes,
   getClienteById,
@@ -106,4 +128,5 @@ module.exports = {
   updateCliente,
   deleteCliente,
   updateEstatus,
+  getUltimasVentasCliente,
 };

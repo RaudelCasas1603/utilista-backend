@@ -1,14 +1,22 @@
 const express = require("express");
 const router = express.Router();
-const controller = require("./proveedores.controller");
 
-router.get("/", controller.getProveedores);
-router.get("/:id", controller.getProveedorById);
-router.post("/", controller.createProveedor);
-router.put("/:id", controller.updateProveedor);
-router.delete("/:id", controller.deleteProveedor);
+const {
+  getProveedores,
+  getProveedorById,
+  createProveedor,
+  updateProveedor,
+  deleteProveedor,
+  updateEstatus,
+  getStatsByProveedor,
+} = require("./proveedores.controller");
 
-// PRO
-router.patch("/:id/estatus", controller.updateEstatus);
+router.get("/", getProveedores);
+router.get("/:id/stats", getStatsByProveedor);
+router.get("/:id", getProveedorById);
+router.post("/", createProveedor);
+router.put("/:id", updateProveedor);
+router.patch("/:id/estatus", updateEstatus);
+router.delete("/:id", deleteProveedor);
 
 module.exports = router;

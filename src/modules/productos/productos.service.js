@@ -33,6 +33,13 @@ async function actualizarProducto(id, data) {
   });
 }
 
+async function obtenerHistorialVentasUltimos7Dias(id) {
+  const existente = await repo.getProductoById(id);
+  if (!existente) throw new Error("No existe");
+
+  return await repo.getHistorialVentasUltimos7Dias(id);
+}
+
 module.exports = {
   crearProducto,
   actualizarProducto,
@@ -40,4 +47,5 @@ module.exports = {
   obtenerProductoPorId: repo.getProductoById,
   eliminarProducto: repo.deleteProducto,
   obtenerPorCodigoBarras: repo.getByCodigoBarras,
+  obtenerHistorialVentasUltimos7Dias,
 };

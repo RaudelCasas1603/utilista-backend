@@ -1,11 +1,11 @@
-const repo = require("./clientes.repository");
+const repository = require("./clientes.repository");
 
 async function obtenerClientes() {
-  return await repo.getAll();
+  return await repository.getAll();
 }
 
 async function obtenerClientePorId(id) {
-  const cliente = await repo.getById(id);
+  const cliente = await repository.getById(id);
 
   if (!cliente) {
     throw new Error("Cliente no encontrado");
@@ -15,64 +15,73 @@ async function obtenerClientePorId(id) {
 }
 
 async function crearCliente(data) {
-  if (!data.nombre || data.nombre.trim() === "") {
+  if (!data.nombre || !data.nombre.trim()) {
     throw new Error("El nombre es obligatorio");
   }
 
-  const descuento = Number(data.descuento || 0);
-
-  if (descuento < 0) {
+  if (Number(data.descuento || 0) < 0) {
     throw new Error("El descuento no puede ser negativo");
   }
 
-  return await repo.create({
-    nombre: data.nombre,
-    telefono: data.telefono || "",
-    correo: data.correo || "",
-    descuento,
-    referencia: data.referencia || "",
+  return await repository.create({
+    nombre: data.nombre.trim(),
+    telefono: data.telefono?.trim() || "",
+    correo: data.correo?.trim() || "",
+    descuento: Number(data.descuento || 0),
+    referencia: data.referencia?.trim() || "",
     estatus: data.estatus || "activo",
   });
 }
 
 async function actualizarCliente(id, data) {
-  const existente = await repo.getById(id);
+  const clienteExistente = await repository.getById(id);
 
-  if (!existente) {
+  if (!clienteExistente) {
     throw new Error("Cliente no encontrado");
   }
 
-  const descuento = Number(data.descuento ?? existente.descuento);
-
-  if (descuento < 0) {
+  if (Number(data.descuento || 0) < 0) {
     throw new Error("El descuento no puede ser negativo");
   }
 
-  return await repo.update(id, {
-    ...existente,
-    ...data,
-    descuento,
+  return await repository.update(id, {
+    nombre: data.nombre?.trim() || "",
+    telefono: data.telefono?.trim() || "",
+    correo: data.correo?.trim() || "",
+    descuento: Number(data.descuento || 0),
+    referencia: data.referencia?.trim() || "",
+    estatus: data.estatus || "activo",
   });
 }
 
 async function eliminarCliente(id) {
-  const existente = await repo.getById(id);
+  const cliente = await repository.remove(id);
 
-  if (!existente) {
+  if (!cliente) {
     throw new Error("Cliente no encontrado");
   }
 
-  return await repo.remove(id);
+  return cliente;
 }
 
 async function cambiarEstatus(id, estatus) {
-  const existente = await repo.getById(id);
+  const clienteExistente = await repository.getById(id);
 
-  if (!existente) {
+  if (!clienteExistente) {
     throw new Error("Cliente no encontrado");
   }
 
-  return await repo.updateEstatus(id, estatus);
+  return await repository.updateEstatus(id, estatus);
+}
+
+async function obtenerUltimasVentasCliente(idCliente, limit = 8) {
+  const clienteExistente = await repository.getById(idCliente);
+
+  if (!clienteExistente) {
+    throw new Error("Cliente no encontrado");
+  }
+
+  return await repository.getUltimasVentasPorCliente(idCliente, limit);
 }
 
 module.exports = {
@@ -82,4 +91,5 @@ module.exports = {
   actualizarCliente,
   eliminarCliente,
   cambiarEstatus,
+  obtenerUltimasVentasCliente,
 };

@@ -257,9 +257,281 @@ async function createVenta(data) {
 }
 
 async function updateVentaPendiente(id, data) {
-  throw new Error("Falta implementar updateVentaPendiente");
-}
+  const client = await pool.connect();
 
+  try {
+    await client.query("BEGIN");
+
+    // 1. Validar que exista la venta y que siga pendiente
+    const ventaRes = await client.query(
+      `
+      SELECT id, folio, estatus, id_cliente
+      FROM ventas
+      WHERE id = $1
+      FOR UPDATE
+      `,
+      [id],
+    );
+
+    if (ventaRes.rows.length === 0) {
+      throw new Error("La venta no existe");
+    }
+
+    const ventaActual = ventaRes.rows[0];
+
+    if (ventaActual.estatus !== "pendiente") {
+      throw new Error("Solo se pueden editar ventas pendientes");
+    }
+
+    // 2. Obtener cliente para descuento
+    const clienteRes = await client.query(
+      `SELECT id, descuento FROM clientes WHERE id = $1`,
+      [data.id_cliente],
+    );
+
+    if (clienteRes.rows.length === 0) {
+      throw new Error("Cliente no encontrado");
+    }
+
+    const cliente = clienteRes.rows[0];
+    const descuentoCliente = Number(cliente.descuento || 0);
+
+    // 3. Obtener detalle anterior
+    const detalleAnteriorRes = await client.query(
+      `
+      SELECT id_producto, cantidad
+      FROM ventas_detalle
+      WHERE id_venta = $1
+      `,
+      [id],
+    );
+
+    // 4. Regresar stock anterior
+    for (const item of detalleAnteriorRes.rows) {
+      const inventarioRes = await client.query(
+        `
+        SELECT stock_actual
+        FROM inventario
+        WHERE id_producto = $1
+        FOR UPDATE
+        `,
+        [item.id_producto],
+      );
+
+      if (inventarioRes.rows.length === 0) {
+        throw new Error(
+          `No existe inventario para el producto con id ${item.id_producto}`,
+        );
+      }
+
+      const stockActual = Number(inventarioRes.rows[0].stock_actual);
+      const cantidadAnterior = Number(item.cantidad);
+      const stockNuevo = stockActual + cantidadAnterior;
+
+      await client.query(
+        `
+        UPDATE inventario
+        SET stock_actual = $1
+        WHERE id_producto = $2
+        `,
+        [stockNuevo, item.id_producto],
+      );
+
+      await client.query(
+        `
+        INSERT INTO movimientos_inventario (
+          id_producto,
+          tipo_movimiento,
+          cantidad,
+          stock_anterior,
+          stock_nuevo,
+          motivo,
+          id_usuario,
+          id_venta
+        )
+        VALUES ($1, 'entrada', $2, $3, $4, $5, $6, $7)
+        `,
+        [
+          item.id_producto,
+          cantidadAnterior,
+          stockActual,
+          stockNuevo,
+          `Reversion de ticket pendiente ${ventaActual.folio}`,
+          data.id_usuario,
+          id,
+        ],
+      );
+    }
+
+    // 5. Borrar detalle anterior
+    await client.query(`DELETE FROM ventas_detalle WHERE id_venta = $1`, [id]);
+
+    // 6. Procesar nuevos items
+    let subtotal = 0;
+    let totalArticulos = 0;
+    const itemsProcesados = [];
+
+    for (const item of data.items) {
+      const productoRes = await client.query(
+        `
+        SELECT
+          p.id,
+          p.nombre,
+          p.precio_venta,
+          i.stock_actual
+        FROM productos p
+        INNER JOIN inventario i ON i.id_producto = p.id
+        WHERE p.id = $1
+        FOR UPDATE
+        `,
+        [item.id_producto],
+      );
+
+      if (productoRes.rows.length === 0) {
+        throw new Error(`Producto con id ${item.id_producto} no encontrado`);
+      }
+
+      const producto = productoRes.rows[0];
+      const cantidad = Number(item.cantidad);
+
+      if (cantidad <= 0) {
+        throw new Error(`Cantidad inválida para producto ${item.id_producto}`);
+      }
+
+      if (Number(producto.stock_actual) < cantidad) {
+        throw new Error(
+          `Stock insuficiente para el producto ${producto.nombre}`,
+        );
+      }
+
+      const precioUnitario = Number(producto.precio_venta);
+      const subtotalLinea = precioUnitario * cantidad;
+
+      subtotal += subtotalLinea;
+      totalArticulos += cantidad;
+
+      itemsProcesados.push({
+        id_producto: Number(producto.id),
+        nombre: producto.nombre,
+        cantidad,
+        precio_unitario: precioUnitario,
+        subtotal: subtotalLinea,
+        stock_anterior: Number(producto.stock_actual),
+        stock_nuevo: Number(producto.stock_actual) - cantidad,
+      });
+    }
+
+    const descuento = Number(((subtotal * descuentoCliente) / 100).toFixed(2));
+    const total = Number((subtotal - descuento).toFixed(2));
+
+    // 7. Actualizar encabezado de venta
+    await client.query(
+      `
+      UPDATE ventas
+      SET
+        id_cliente = $2,
+        id_usuario = $3,
+        subtotal = $4,
+        descuento = $5,
+        metodo_pago = $6,
+        total = $7,
+        total_articulos = $8,
+        observaciones = $9,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      `,
+      [
+        id,
+        data.id_cliente,
+        data.id_usuario,
+        subtotal,
+        descuento,
+        data.metodo_pago || null,
+        total,
+        totalArticulos,
+        data.observaciones || null,
+      ],
+    );
+
+    // 8. Insertar nuevo detalle y volver a descontar stock
+    for (const item of itemsProcesados) {
+      const descuentoLinea =
+        subtotal > 0
+          ? Number(((item.subtotal / subtotal) * descuento).toFixed(2))
+          : 0;
+
+      const descuentoUnitario =
+        item.cantidad > 0
+          ? Number((descuentoLinea / item.cantidad).toFixed(2))
+          : 0;
+
+      await client.query(
+        `
+        INSERT INTO ventas_detalle (
+          id_venta,
+          id_producto,
+          cantidad,
+          precio_unitario,
+          descuento_unitario,
+          subtotal
+        )
+        VALUES ($1, $2, $3, $4, $5, $6)
+        `,
+        [
+          id,
+          item.id_producto,
+          item.cantidad,
+          item.precio_unitario,
+          descuentoUnitario,
+          item.subtotal,
+        ],
+      );
+
+      await client.query(
+        `
+        UPDATE inventario
+        SET stock_actual = $1
+        WHERE id_producto = $2
+        `,
+        [item.stock_nuevo, item.id_producto],
+      );
+
+      await client.query(
+        `
+        INSERT INTO movimientos_inventario (
+          id_producto,
+          tipo_movimiento,
+          cantidad,
+          stock_anterior,
+          stock_nuevo,
+          motivo,
+          id_usuario,
+          id_venta
+        )
+        VALUES ($1, 'salida', $2, $3, $4, $5, $6, $7)
+        `,
+        [
+          item.id_producto,
+          item.cantidad,
+          item.stock_anterior,
+          item.stock_nuevo,
+          `Actualizacion de ticket pendiente ${ventaActual.folio}`,
+          data.id_usuario,
+          id,
+        ],
+      );
+    }
+
+    await client.query("COMMIT");
+
+    return await getById(id);
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
 async function cancelarVenta(idVenta, idUsuario = 1) {
   const client = await pool.connect();
 

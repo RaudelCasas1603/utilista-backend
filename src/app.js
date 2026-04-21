@@ -12,6 +12,8 @@ const { ventasRoutes } = require("./modules/ventas");
 const cobrosRoutes = require("./modules/cobros");
 const reportesVentasRoutes = require("./modules/reportes/ventas");
 
+const impresionRoutes = require("./modules/impresion/impresion.routes");
+
 const app = express();
 
 app.use(cors());
@@ -48,5 +50,7 @@ app.use("/api/configuracion", configuracionRoutes);
 app.use("/api/ventas", ventasRoutes);
 app.use("/api/cobros", cobrosRoutes);
 app.use("/api/reportes/ventas", reportesVentasRoutes);
+
+app.use("/api/impresion", impresionRoutes);
 
 module.exports = app;

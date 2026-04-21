@@ -95,6 +95,34 @@ async function deleteInventario(req, res) {
   }
 }
 
+async function getProveedoresReporteInventario(req, res) {
+  try {
+    const data = await service.obtenerProveedoresReporteInventario();
+
+    res.status(200).json({
+      ok: true,
+      proveedores: data,
+    });
+  } catch (error) {
+    console.error("Error al obtener proveedores del reporte:", error);
+    res.status(500).json({ message: "Error interno del servidor" });
+  }
+}
+async function getReporteInventario(req, res) {
+  try {
+    const data = await service.obtenerReporteInventario(req.query);
+    res.status(200).json(data);
+  } catch (error) {
+    console.error("Error al generar reporte de inventario:", error);
+
+    if (error.message === "Tipo de reporte inválido") {
+      return res.status(400).json({ message: error.message });
+    }
+
+    res.status(500).json({ message: "Error interno del servidor" });
+  }
+}
+
 module.exports = {
   getInventario,
   getInventarioById,
@@ -102,4 +130,6 @@ module.exports = {
   createInventario,
   updateInventario,
   deleteInventario,
+  getProveedoresReporteInventario,
+  getReporteInventario,
 };

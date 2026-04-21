@@ -150,6 +150,63 @@ async function deleteInventario(id) {
   );
   return result.rows[0];
 }
+async function getProveedoresReporteInventario() {
+  const result = await pool.query(`
+    SELECT DISTINCT pr.empresa
+    FROM inventario i
+    INNER JOIN productos p ON p.id = i.id_producto
+    LEFT JOIN proveedores pr ON pr.id = p.id_proveedor
+    WHERE pr.empresa IS NOT NULL
+      AND TRIM(pr.empresa) <> ''
+    ORDER BY pr.empresa ASC
+  `);
+
+  return result.rows;
+}
+async function getReporteInventario({ proveedor, tipoReporte }) {
+  let condicionTipo = "";
+  const values = [];
+  let index = 1;
+
+  if (tipoReporte === "sin-stock") {
+    condicionTipo = `i.stock_actual = 0`;
+  } else if (tipoReporte === "debajo-minimo") {
+    condicionTipo = `i.stock_actual < i.stock_minimo`;
+  } else if (tipoReporte === "hacia-ideal") {
+    condicionTipo = `i.stock_actual < i.stock_deseado`;
+  } else {
+    throw new Error("Tipo de reporte inválido");
+  }
+
+  let condicionProveedor = "";
+  if (proveedor && proveedor !== "Todos") {
+    condicionProveedor = `AND pr.empresa = $${index}`;
+    values.push(proveedor);
+    index++;
+  }
+
+  const query = `
+    SELECT
+      i.id,
+      i.id_producto,
+      i.stock_actual,
+      i.stock_minimo,
+      i.stock_deseado,
+      p.codigo_producto,
+      p.codigo_barras,
+      p.nombre,
+      COALESCE(pr.empresa, 'Sin proveedor') AS empresa
+    FROM inventario i
+    INNER JOIN productos p ON p.id = i.id_producto
+    LEFT JOIN proveedores pr ON pr.id = p.id_proveedor
+    WHERE ${condicionTipo}
+    ${condicionProveedor}
+    ORDER BY empresa ASC, p.nombre ASC
+  `;
+
+  const result = await pool.query(query, values);
+  return result.rows;
+}
 
 module.exports = {
   getAllInventario,
@@ -159,4 +216,6 @@ module.exports = {
   updateInventario,
   createMovimientoInventario,
   deleteInventario,
+  getProveedoresReporteInventario,
+  getReporteInventario,
 };

@@ -91,6 +91,71 @@ async function eliminarInventario(id) {
   return await repo.deleteInventario(id);
 }
 
+async function obtenerProveedoresReporteInventario() {
+  const proveedores = await repo.getProveedoresReporteInventario();
+
+  return [
+    "Todos",
+    ...proveedores
+      .map((p) => p.empresa)
+      .filter((empresa) => empresa && empresa.trim() !== ""),
+  ];
+}
+async function obtenerReporteInventario(query) {
+  const proveedor = query.proveedor || "Todos";
+  const tipoReporte = query.tipoReporte || "debajo-minimo";
+
+  const productos = await repo.getReporteInventario({
+    proveedor,
+    tipoReporte,
+  });
+
+  const productosAgrupados = productos.reduce((acc, producto) => {
+    const proveedorNombre = producto.proveedor || "Sin proveedor";
+
+    let faltantes = 0;
+
+    if (tipoReporte === "sin-stock") {
+      faltantes =
+        Number(producto.stock_deseado) - Number(producto.stock_actual);
+    } else if (tipoReporte === "debajo-minimo") {
+      faltantes = Number(producto.stock_minimo) - Number(producto.stock_actual);
+    } else {
+      faltantes =
+        Number(producto.stock_deseado) - Number(producto.stock_actual);
+    }
+
+    if (!acc[proveedorNombre]) {
+      acc[proveedorNombre] = [];
+    }
+
+    acc[proveedorNombre].push({
+      ...producto,
+      faltantes: Math.max(faltantes, 0),
+    });
+
+    return acc;
+  }, {});
+
+  const proveedores = Object.entries(productosAgrupados).map(
+    ([nombreProveedor, productosProveedor]) => ({
+      proveedor: nombreProveedor,
+      totalProductos: productosProveedor.length,
+      productos: productosProveedor,
+    }),
+  );
+
+  return {
+    ok: true,
+    filtros: {
+      proveedor,
+      tipoReporte,
+    },
+    totalProductos: productos.length,
+    proveedores,
+  };
+}
+
 module.exports = {
   obtenerInventario,
   obtenerInventarioPorId,
@@ -98,4 +163,6 @@ module.exports = {
   crearInventario,
   actualizarInventario,
   eliminarInventario,
+  obtenerProveedoresReporteInventario,
+  obtenerReporteInventario,
 };

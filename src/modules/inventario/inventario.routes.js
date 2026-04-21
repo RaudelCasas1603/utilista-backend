@@ -2,6 +2,9 @@ const express = require("express");
 const router = express.Router();
 const controller = require("./inventario.controller");
 
+router.get("/reportes/proveedores", controller.getProveedoresReporteInventario);
+router.get("/reportes/faltantes", controller.getReporteInventario);
+
 router.get("/", controller.getInventario);
 router.get("/producto/:id_producto", controller.getInventarioByProductoId);
 router.get("/:id", controller.getInventarioById);

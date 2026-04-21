@@ -91,12 +91,11 @@ async function getReportePorDia(fechaInicio, fechaFin) {
       GROUP BY v.fecha_hora::date
     )
     SELECT
-      TO_CHAR(vd.fecha_real, 'DD Mon') AS fecha,
-      vd.fecha_real,
-      vd.ventas,
+      TO_CHAR(vd.fecha_real, 'YYYY-MM-DD') AS fecha_real,
+      COALESCE(vd.ventas, 0) AS ventas,
       COALESCE(md.margen, 0) AS margen,
-      vd.tickets,
-      vd.productos
+      COALESCE(vd.tickets, 0) AS tickets,
+      COALESCE(vd.productos, 0) AS productos
     FROM ventas_dia vd
     LEFT JOIN margen_dia md ON md.fecha_real = vd.fecha_real
     ORDER BY vd.fecha_real ASC
@@ -105,7 +104,7 @@ async function getReportePorDia(fechaInicio, fechaFin) {
   );
 
   return res.rows.map((row) => ({
-    fecha: row.fecha,
+    fecha: row.fecha_real,
     fechaReal: row.fecha_real,
     ventas: Number(row.ventas || 0),
     margen: Number(row.margen || 0),

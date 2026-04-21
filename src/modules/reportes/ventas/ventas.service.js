@@ -151,6 +151,7 @@ async function obtenerReporteCompleto(query) {
     topProductos,
     resumenDias: porDia.map((item) => ({
       fecha: item.fecha,
+      fechaReal: item.fechaReal,
       tickets: item.tickets,
       vendidos: item.ventas,
       margen: item.margen,

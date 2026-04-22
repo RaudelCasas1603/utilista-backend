@@ -123,7 +123,9 @@ async function imprimirTicketVenta(idVenta) {
           .text(`Fecha: ${new Date(venta.fecha_hora).toLocaleString("es-MX")}`)
           .text(`Cliente: ${venta.cliente_nombre || "Publico general"}`)
           .text(`Pago: ${venta.metodo_pago || "No definido"}`)
-          .text(`Articulos: ${venta.total_articulos || detalle.length}`)
+          .text(
+            `Total de articulos: ${venta.total_articulos || detalle.length}`,
+          )
           .text(line());
 
         for (const item of detalle) {

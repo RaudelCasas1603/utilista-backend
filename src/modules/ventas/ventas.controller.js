@@ -66,6 +66,18 @@ async function finalizarVenta(req, res) {
   }
 }
 
+const ventasService = require("./ventas.service");
+
+async function getVentasFinalizadas(req, res) {
+  try {
+    const ventas = await ventasService.obtenerVentasFinalizadas();
+    res.json(ventas);
+  } catch (error) {
+    console.error("Error al obtener ventas finalizadas:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+}
+
 module.exports = {
   getVentasPendientes,
   getVentaById,
@@ -73,4 +85,5 @@ module.exports = {
   updateVenta,
   cancelarVenta,
   finalizarVenta,
+  getVentasFinalizadas,
 };

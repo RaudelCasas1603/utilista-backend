@@ -82,6 +82,11 @@ async function finalizarVenta(id, data) {
     observaciones: data.observaciones || "",
   });
 }
+const ventasRepository = require("./ventas.repository");
+
+async function obtenerVentasFinalizadas() {
+  return await ventasRepository.getVentasFinalizadas();
+}
 
 module.exports = {
   obtenerVentasPendientes,
@@ -90,4 +95,5 @@ module.exports = {
   actualizarVentaPendiente,
   cancelarVenta,
   finalizarVenta,
+  obtenerVentasFinalizadas,
 };

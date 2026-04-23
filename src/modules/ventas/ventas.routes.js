@@ -8,8 +8,10 @@ const {
   updateVenta,
   cancelarVenta,
   finalizarVenta,
+  getVentasFinalizadas,
 } = require("./ventas.controller");
 
+router.get("/finalizadas", getVentasFinalizadas);
 router.get("/pendientes", getVentasPendientes);
 router.get("/:id", getVentaById);
 router.post("/", createVenta);

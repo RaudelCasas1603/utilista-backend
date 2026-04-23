@@ -671,6 +671,16 @@ async function finalizarVenta(id, data) {
   return await getById(id);
 }
 
+async function getVentasFinalizadas() {
+  const result = await pool.query(`
+    SELECT *
+    FROM ventas
+    ORDER BY fecha_hora DESC
+  `);
+
+  return result.rows;
+}
+
 module.exports = {
   getPendientes,
   getById,
@@ -678,4 +688,5 @@ module.exports = {
   updateVentaPendiente,
   cancelarVenta,
   finalizarVenta,
+  getVentasFinalizadas,
 };

@@ -1,30 +1,24 @@
-const repo = require("./configuracion.repository");
+const configuracionRepository = require("./configuracion.repository");
 
 async function obtenerConfiguracion() {
-  let config = await repo.get();
-
-  // Si no existe, crear una por defecto
-  if (!config) {
-    config = await repo.createDefault();
-  }
-
-  return config;
+  return await configuracionRepository.getConfiguracion();
 }
 
-async function actualizarConfiguracion(data) {
-  const existente = await repo.get();
+async function crearConfiguracion(data) {
+  return await configuracionRepository.createConfiguracion(data);
+}
 
-  if (!existente) {
-    throw new Error("Configuración no encontrada");
-  }
+async function actualizarConfiguracion(id, data) {
+  return await configuracionRepository.updateConfiguracion(id, data);
+}
 
-  return await repo.update({
-    ...existente,
-    ...data,
-  });
+async function guardarConfiguracion(data) {
+  return await configuracionRepository.upsertConfiguracion(data);
 }
 
 module.exports = {
   obtenerConfiguracion,
+  crearConfiguracion,
   actualizarConfiguracion,
+  guardarConfiguracion,
 };

@@ -23,6 +23,21 @@ async function imprimirTicketVenta(req, res) {
   }
 }
 
+async function getImpresoras(req, res) {
+  try {
+    const impresoras = await impresionService.listarImpresoras();
+
+    res.json(impresoras);
+  } catch (error) {
+    console.error("Error al listar impresoras:", error);
+
+    res.status(500).json({
+      message: "Error al obtener impresoras",
+    });
+  }
+}
+
 module.exports = {
   imprimirTicketVenta,
+  getImpresoras,
 };

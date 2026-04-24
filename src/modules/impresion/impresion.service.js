@@ -1,48 +1,58 @@
 const pool = require("../../config/db");
 const { Printer } = require("@node-escpos/core");
 const USB = require("@node-escpos/usb-adapter");
-
-const TICKET_WIDTH = 48; // 80mm aprox
+const ptp = require("pdf-to-printer");
 
 function money(value) {
   return `$${Number(value || 0).toFixed(2)}`;
 }
 
-function line(width = TICKET_WIDTH) {
-  return "-".repeat(width);
+function formatDate(value) {
+  if (!value) return "Sin fecha";
+
+  return new Date(value).toLocaleString("es-MX", {
+    dateStyle: "short",
+    timeStyle: "short",
+  });
 }
 
-function rightText(label, value, width = TICKET_WIDTH) {
-  const left = String(label ?? "");
-  const right = String(value ?? "");
-  const spaces = width - left.length - right.length;
-
-  if (spaces <= 1) return `${left} ${right}`;
-  return `${left}${" ".repeat(spaces)}${right}`;
+function textoSeguro(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
 }
 
-function truncateText(text, max = TICKET_WIDTH) {
-  const value = String(text ?? "");
-  if (value.length <= max) return value;
-  return value.slice(0, max - 3) + "...";
+async function listarImpresoras() {
+  const impresoras = await ptp.getPrinters();
+
+  return impresoras.map((impresora) => ({
+    nombre: impresora.name,
+    default: impresora.isDefault || false,
+  }));
+}
+
+async function obtenerConfiguracionSistema() {
+  const result = await pool.query(`
+    SELECT
+      nombre_negocio,
+      telefono_negocio,
+      direccion_negocio,
+      habilitar_impresora,
+      nombre_impresora,
+      mensaje_ticket
+    FROM configuracion_sistema
+    ORDER BY id ASC
+    LIMIT 1
+  `);
+
+  return result.rows[0] || null;
 }
 
 async function obtenerVentaCabecera(idVenta) {
   const result = await pool.query(
     `
     SELECT
-      v.id,
-      v.folio,
-      v.fecha_hora,
-      v.id_cliente,
-      v.id_usuario,
-      v.subtotal,
-      v.descuento,
-      v.metodo_pago,
-      v.total,
-      v.total_articulos,
-      v.estatus,
-      v.observaciones,
+      v.*,
       c.nombre AS cliente_nombre
     FROM ventas v
     LEFT JOIN clientes c ON c.id = v.id_cliente
@@ -51,20 +61,14 @@ async function obtenerVentaCabecera(idVenta) {
     [idVenta],
   );
 
-  return result.rows[0];
+  return result.rows[0] || null;
 }
 
 async function obtenerDetalleVenta(idVenta) {
   const result = await pool.query(
     `
     SELECT
-      vd.id,
-      vd.id_venta,
-      vd.id_producto,
-      vd.cantidad,
-      vd.precio_unitario,
-      vd.descuento_unitario,
-      vd.subtotal,
+      vd.*,
       p.nombre
     FROM ventas_detalle vd
     INNER JOIN productos p ON p.id = vd.id_producto
@@ -77,9 +81,68 @@ async function obtenerDetalleVenta(idVenta) {
   return result.rows;
 }
 
+/**
+ * 🔥 CREA IMPRESORA USANDO CONFIG
+ */
+function crearImpresora(config) {
+  const options = {
+    encoding: "GB18030",
+  };
+
+  try {
+    if (config.nombre_impresora) {
+      const device = new USB(config.nombre_impresora);
+      const printer = new Printer(device, options);
+
+      console.log("🖨️ Usando impresora configurada:", config.nombre_impresora);
+
+      return { device, printer };
+    }
+  } catch (error) {
+    console.warn("⚠️ No se pudo usar impresora por nombre:", error.message);
+  }
+
+  console.log("🖨️ Usando impresora USB directa");
+
+  const device = new USB();
+  const printer = new Printer(device, options);
+
+  return { device, printer };
+}
+
+function imprimirLineaProducto(printer, item) {
+  const nombre = textoSeguro(item.nombre || "Producto");
+  const cantidad = Number(item.cantidad || 0);
+  const precio = money(item.precio_unitario);
+  const subtotal = money(item.subtotal);
+
+  printer.text(nombre);
+
+  const izquierda = `${cantidad} x ${precio}`;
+  const derecha = subtotal;
+
+  printer.text(`${izquierda.padEnd(24, " ")}${derecha}`);
+}
+
+/**
+ * 🧾 FUNCIÓN PRINCIPAL
+ */
 async function imprimirTicketVenta(idVenta) {
   console.log("🧾 === IMPRIMIENDO TICKET ===");
-  console.log("ID Venta:", idVenta);
+
+  const config = await obtenerConfiguracionSistema();
+
+  if (!config) {
+    throw new Error("No existe configuración del sistema");
+  }
+
+  if (!config.habilitar_impresora) {
+    throw new Error("La impresión está deshabilitada");
+  }
+
+  if (!config.nombre_impresora) {
+    console.warn("⚠️ No hay impresora configurada, usando USB directo");
+  }
 
   const venta = await obtenerVentaCabecera(idVenta);
 
@@ -90,92 +153,105 @@ async function imprimirTicketVenta(idVenta) {
   const detalle = await obtenerDetalleVenta(idVenta);
 
   if (!detalle.length) {
-    throw new Error("La venta no tiene detalle");
+    throw new Error("La venta no tiene productos");
   }
 
-  const device = new USB();
+  const { device, printer } = crearImpresora(config);
 
   return new Promise((resolve, reject) => {
-    device.open(async (err) => {
-      if (err) {
-        console.error("❌ Error al abrir USB:", err);
-        return reject(err);
+    device.open((error) => {
+      if (error) {
+        console.error("❌ Error al abrir impresora:", error);
+        return reject(new Error("No se pudo conectar con la impresora"));
       }
 
       try {
-        const printer = new Printer(device, {
-          encoding: "GB18030",
-        });
-
-        // Encabezado centrado
-        await printer
+        /**
+         * 🔹 HEADER (CON CONFIG)
+         */
+        printer
           .align("ct")
           .style("b")
-          .text("UTILISTA")
-          .style("normal")
-          .text("Ticket de venta")
-          .text(line());
-
-        // Contenido alineado a la izquierda
-        await printer
-          .align("lt")
-          .text(`Folio: ${venta.folio || venta.id}`)
-          .text(`Fecha: ${new Date(venta.fecha_hora).toLocaleString("es-MX")}`)
-          .text(`Cliente: ${venta.cliente_nombre || "Publico general"}`)
-          .text(`Pago: ${venta.metodo_pago || "No definido"}`)
-          .text(
-            `Total de articulos: ${venta.total_articulos || detalle.length}`,
-          )
-          .text(line());
-
-        for (const item of detalle) {
-          const nombre = truncateText(item.nombre || "Producto", TICKET_WIDTH);
-          const qtyPrice = `${item.cantidad} x ${money(item.precio_unitario)}`;
-          const totalLinea = money(item.subtotal);
-
-          await printer.text(nombre);
-          await printer.text(rightText(qtyPrice, totalLinea, TICKET_WIDTH));
-        }
-
-        await printer.text(line());
-
-        if (Number(venta.descuento || 0) > 0) {
-          await printer.text(
-            rightText("DESCUENTO", `-${money(venta.descuento)}`, TICKET_WIDTH),
-          );
-        }
-
-        await printer
-          .style("b")
-          .text(rightText("SUBTOTAL", money(venta.subtotal), TICKET_WIDTH))
-          .text(rightText("TOTAL", money(venta.total), TICKET_WIDTH))
+          .size(1, 1)
+          .text(textoSeguro(config.nombre_negocio || "UTILISTA POS"))
           .style("normal");
 
-        if (venta.observaciones) {
-          await printer.text(line());
-          await printer.text("Observaciones:");
-          await printer.text(truncateText(venta.observaciones, TICKET_WIDTH));
+        if (config.telefono_negocio) {
+          printer.text(`Tel: ${textoSeguro(config.telefono_negocio)}`);
         }
 
-        await printer
-          .text("")
-          .align("ct")
-          .text("Gracias por su compra")
-          .text("")
-          .cut()
-          .close();
+        if (config.direccion_negocio) {
+          printer.text(textoSeguro(config.direccion_negocio));
+        }
 
-        console.log("✅ Ticket impreso correctamente");
+        printer.drawLine();
 
-        resolve({
-          idVenta: venta.id,
-          folio: venta.folio,
-          productos: detalle.length,
-          total: venta.total,
+        /**
+         * 🔹 INFO VENTA
+         */
+        printer
+          .align("lt")
+          .text(`Folio: ${venta.folio || venta.id}`)
+          .text(`Fecha: ${formatDate(venta.fecha_hora)}`)
+          .text(`Cliente: ${textoSeguro(venta.cliente_nombre || "General")}`)
+          .text(`Pago: ${venta.metodo_pago}`)
+          .drawLine();
+
+        /**
+         * 🔹 DETALLE
+         */
+        detalle.forEach((item) => {
+          imprimirLineaProducto(printer, item);
         });
-      } catch (error) {
-        console.error("❌ Error al imprimir:", error);
-        reject(error);
+
+        printer.drawLine();
+
+        /**
+         * 🔹 TOTALES
+         */
+        if (Number(venta.descuento || 0) > 0) {
+          printer.align("rt").text(`Descuento: -${money(venta.descuento)}`);
+        }
+
+        printer
+          .align("rt")
+          .text(`Subtotal: ${money(venta.subtotal)}`)
+          .style("b")
+          .size(1, 1)
+          .text(`TOTAL: ${money(venta.total)}`)
+          .style("normal")
+          .size(0, 0);
+
+        /**
+         * 🔹 MENSAJE FINAL (CONFIG)
+         */
+        if (config.mensaje_ticket) {
+          printer
+            .drawLine()
+            .align("ct")
+            .text(textoSeguro(config.mensaje_ticket));
+        }
+
+        /**
+         * 🔹 FINAL
+         */
+        printer
+          .feed(2)
+          .cut()
+          .close(() => {
+            console.log("✅ Ticket impreso correctamente");
+
+            resolve({
+              idVenta: venta.id,
+              folio: venta.folio,
+              impresora: config.nombre_impresora || "USB directa",
+              total: venta.total,
+              productos: detalle.length,
+            });
+          });
+      } catch (err) {
+        console.error("❌ Error durante impresión:", err);
+        reject(err);
       }
     });
   });
@@ -183,4 +259,5 @@ async function imprimirTicketVenta(idVenta) {
 
 module.exports = {
   imprimirTicketVenta,
+  listarImpresoras,
 };

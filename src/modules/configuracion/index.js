@@ -1,3 +1,3 @@
-module.exports = {
-  configuracionRoutes: require("./configuracion.routes"),
-};
+const configuracionRoutes = require("./configuracion.routes");
+
+module.exports = configuracionRoutes;

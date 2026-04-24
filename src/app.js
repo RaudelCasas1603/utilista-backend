@@ -7,7 +7,8 @@ const { inventarioRoutes } = require("./modules/inventario");
 const { proveedoresRoutes } = require("./modules/proveedores");
 const { clientesRoutes } = require("./modules/clientes");
 const { categoriasRoutes } = require("./modules/categorias");
-const { configuracionRoutes } = require("./modules/configuracion");
+const configuracionRoutes = require("./modules/configuracion");
+
 const { ventasRoutes } = require("./modules/ventas");
 const cobrosRoutes = require("./modules/cobros");
 const reportesVentasRoutes = require("./modules/reportes/ventas");

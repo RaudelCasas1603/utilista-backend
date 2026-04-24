@@ -159,16 +159,44 @@ async function imprimirTicketVenta(idVenta) {
   const { device, printer } = crearImpresora(config);
 
   return new Promise((resolve, reject) => {
+    let finished = false;
+
+    const finalizarOk = () => {
+      if (finished) return;
+      finished = true;
+
+      console.log("✅ Ticket impreso correctamente");
+
+      resolve({
+        idVenta: venta.id,
+        folio: venta.folio,
+        impresora: config.nombre_impresora || "USB directa",
+        total: venta.total,
+        productos: detalle.length,
+      });
+    };
+
+    const finalizarError = (error) => {
+      if (finished) return;
+      finished = true;
+
+      console.error("❌ Error al imprimir ticket:", error);
+
+      reject(
+        error instanceof Error
+          ? error
+          : new Error("No se pudo imprimir el ticket"),
+      );
+    };
+
     device.open((error) => {
       if (error) {
-        console.error("❌ Error al abrir impresora:", error);
-        return reject(new Error("No se pudo conectar con la impresora"));
+        return finalizarError(
+          new Error("No se pudo conectar con la impresora"),
+        );
       }
 
       try {
-        /**
-         * 🔹 HEADER (CON CONFIG)
-         */
         printer
           .align("ct")
           .style("b")
@@ -186,9 +214,6 @@ async function imprimirTicketVenta(idVenta) {
 
         printer.drawLine();
 
-        /**
-         * 🔹 INFO VENTA
-         */
         printer
           .align("lt")
           .text(`Folio: ${venta.folio || venta.id}`)
@@ -197,18 +222,12 @@ async function imprimirTicketVenta(idVenta) {
           .text(`Pago: ${venta.metodo_pago}`)
           .drawLine();
 
-        /**
-         * 🔹 DETALLE
-         */
         detalle.forEach((item) => {
           imprimirLineaProducto(printer, item);
         });
 
         printer.drawLine();
 
-        /**
-         * 🔹 TOTALES
-         */
         if (Number(venta.descuento || 0) > 0) {
           printer.align("rt").text(`Descuento: -${money(venta.descuento)}`);
         }
@@ -222,9 +241,6 @@ async function imprimirTicketVenta(idVenta) {
           .style("normal")
           .size(0, 0);
 
-        /**
-         * 🔹 MENSAJE FINAL (CONFIG)
-         */
         if (config.mensaje_ticket) {
           printer
             .drawLine()
@@ -232,32 +248,173 @@ async function imprimirTicketVenta(idVenta) {
             .text(textoSeguro(config.mensaje_ticket));
         }
 
-        /**
-         * 🔹 FINAL
-         */
-        printer
-          .feed(2)
-          .cut()
-          .close(() => {
-            console.log("✅ Ticket impreso correctamente");
+        printer.feed(2).cut();
 
-            resolve({
-              idVenta: venta.id,
-              folio: venta.folio,
-              impresora: config.nombre_impresora || "USB directa",
-              total: venta.total,
-              productos: detalle.length,
-            });
-          });
+        try {
+          printer.close(finalizarOk);
+        } catch (closeError) {
+          finalizarError(closeError);
+        }
+
+        setTimeout(() => {
+          finalizarOk();
+        }, 1500);
       } catch (err) {
-        console.error("❌ Error durante impresión:", err);
-        reject(err);
+        try {
+          printer.close(() => finalizarError(err));
+        } catch (_) {
+          finalizarError(err);
+        }
       }
     });
   });
 }
 
+async function imprimirCorteCaja(corte) {
+  return new Promise(async (resolve, reject) => {
+    try {
+      console.log("🧾 === IMPRIMIENDO CORTE DE CAJA ===");
+
+      const { device, printer } = await crearImpresora();
+
+      device.open((error) => {
+        if (error) {
+          console.error("❌ Error al abrir impresora:", error);
+          return reject(error);
+        }
+
+        try {
+          printer
+            .align("CT")
+            .style("B")
+            .size(1, 1)
+            .text("CORTE DE CAJA")
+            .size(0, 0)
+            .text("------------------------------")
+            .align("LT")
+            .style("NORMAL")
+            .text(`Folio corte: ${corte.id}`)
+            .text(
+              `Fecha: ${formatFecha(corte.fecha_hora_corte || corte.fecha_corte)}`,
+            )
+            .text(
+              `Hora: ${formatHora(corte.fecha_hora_corte || corte.hora_corte)}`,
+            )
+            .text(`Usuario: ${corte.id_usuario}`)
+            .text("------------------------------")
+            .style("B")
+            .text("RESUMEN DE VENTAS")
+            .style("NORMAL")
+            .text(`Total ventas:   ${formatMoney(corte.total_ventas)}`)
+            .text(`Efectivo:       ${formatMoney(corte.total_efectivo)}`)
+            .text(`Tarjeta:        ${formatMoney(corte.total_tarjeta)}`)
+            .text(`Transferencia:  ${formatMoney(corte.total_transferencias)}`)
+            .text(`Devoluciones:   ${formatMoney(corte.total_devoluciones)}`)
+            .text(`Tickets:        ${corte.total_tickets}`)
+            .text("------------------------------")
+            .style("B")
+            .text("EFECTIVO")
+            .style("NORMAL")
+            .text(`Saldo inicial:  ${formatMoney(corte.saldo_inicial)}`)
+            .text(`Esperado:       ${formatMoney(corte.efectivo_esperado)}`)
+            .text(`Contado:        ${formatMoney(corte.efectivo_contado)}`)
+            .text(`Diferencia:     ${formatMoney(corte.diferencia)}`)
+            .text("------------------------------")
+            .style("B")
+            .text(
+              `RESULTADO: ${String(corte.tipo_resultado || "").toUpperCase()}`,
+            )
+            .style("NORMAL");
+
+          if (Array.isArray(corte.detalle) && corte.detalle.length > 0) {
+            printer
+              .text("------------------------------")
+              .style("B")
+              .text("DESGLOSE EFECTIVO")
+              .style("NORMAL");
+
+            corte.detalle.forEach((item) => {
+              printer.text(
+                `${formatDenominacion(item.denominacion)} x ${item.cantidad} = ${formatMoney(item.subtotal)}`,
+              );
+            });
+          }
+
+          if (corte.observaciones) {
+            printer
+              .text("------------------------------")
+              .style("B")
+              .text("OBSERVACIONES")
+              .style("NORMAL")
+              .text(String(corte.observaciones));
+          }
+
+          printer
+            .text("------------------------------")
+            .align("CT")
+            .text("FIN DEL CORTE")
+            .feed(3)
+            .cut()
+            .close();
+
+          console.log("✅ Corte de caja impreso correctamente");
+
+          resolve({
+            ok: true,
+            message: "Corte de caja impreso correctamente",
+          });
+        } catch (error) {
+          console.error("❌ Error durante impresión de corte:", error);
+          reject(error);
+        }
+      });
+    } catch (error) {
+      console.error("❌ Error general impresión corte:", error);
+      reject(error);
+    }
+  });
+}
+
+function formatMoney(value) {
+  return `$${Number(value || 0).toFixed(2)}`;
+}
+
+function formatDenominacion(value) {
+  return `$${Number(value || 0).toFixed(0)}`;
+}
+
+function formatFecha(value) {
+  if (!value) return "";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return String(value);
+  }
+
+  return date.toLocaleDateString("es-MX");
+}
+
+function formatHora(value) {
+  if (!value) return "";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return String(value);
+  }
+
+  return date.toLocaleTimeString("es-MX", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatMoney(value) {
+  return `$${Number(value || 0).toFixed(2)}`;
+}
 module.exports = {
   imprimirTicketVenta,
   listarImpresoras,
+  imprimirCorteCaja,
 };

@@ -3,7 +3,9 @@ const dashboardService = require("./dashboard.service");
 async function getResumenDashboard(req, res) {
   try {
     const { periodo = "dia", fecha } = req.query;
-    const data = await dashboardService.getResumenDashboard({ periodo, fecha });
+
+    const data = await dashboardService.getResumenDashboard(periodo, fecha);
+
     res.json(data);
   } catch (error) {
     console.error("Error en getResumenDashboard:", error);
@@ -14,7 +16,9 @@ async function getResumenDashboard(req, res) {
 async function getGraficaVentas(req, res) {
   try {
     const { periodo = "dia", fecha } = req.query;
-    const data = await dashboardService.getGraficaVentas({ periodo, fecha });
+
+    const data = await dashboardService.getGraficaVentas(periodo, fecha);
+
     res.json(data);
   } catch (error) {
     console.error("Error en getGraficaVentas:", error);
@@ -25,7 +29,9 @@ async function getGraficaVentas(req, res) {
 async function getGraficaMargen(req, res) {
   try {
     const { periodo = "dia", fecha } = req.query;
-    const data = await dashboardService.getGraficaMargen({ periodo, fecha });
+
+    const data = await dashboardService.getGraficaMargen(periodo, fecha);
+
     res.json(data);
   } catch (error) {
     console.error("Error en getGraficaMargen:", error);
@@ -36,10 +42,9 @@ async function getGraficaMargen(req, res) {
 async function getVentasPorCategoria(req, res) {
   try {
     const { periodo = "dia", fecha } = req.query;
-    const data = await dashboardService.getVentasPorCategoria({
-      periodo,
-      fecha,
-    });
+
+    const data = await dashboardService.getVentasPorCategoria(periodo, fecha);
+
     res.json(data);
   } catch (error) {
     console.error("Error en getVentasPorCategoria:", error);

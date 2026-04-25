@@ -57,7 +57,9 @@ async function createCorteCaja(req, res) {
 
 async function getResumenDia(req, res) {
   try {
-    const fecha = req.query.fecha || new Date().toISOString().slice(0, 10);
+    const fecha = req.query.fecha || getFechaMexico();
+
+    console.log("Fecha recibida:", fecha);
 
     const resumen = await corteCajaService.getResumenDia(fecha);
 
@@ -71,12 +73,19 @@ async function getResumenDia(req, res) {
     });
   } catch (error) {
     console.error("Error al obtener resumen del día:", error);
-
     res.status(500).json({
       message: "Error al obtener resumen del día",
-      error: error.message,
     });
   }
+}
+
+function getFechaMexico() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Mexico_City",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
 }
 
 module.exports = {

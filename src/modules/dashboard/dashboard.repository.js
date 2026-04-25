@@ -37,18 +37,77 @@ async function getResumenDashboard(periodo, fecha) {
   const { inicio, fin } = getRango(periodo, fecha);
 
   const query = `
+    WITH config AS (
+      SELECT COALESCE(comision_terminal, 0) AS comision_terminal
+      FROM configuracion_sistema
+      ORDER BY id ASC
+      LIMIT 1
+    ),
+    ventas_resumen AS (
+      SELECT
+        COALESCE(SUM(v.total), 0) AS ventas_brutas,
+
+        COALESCE(SUM(
+          CASE WHEN v.metodo_pago = 'efectivo' THEN v.total ELSE 0 END
+        ), 0) AS ventas_efectivo,
+
+        COALESCE(SUM(
+          CASE WHEN v.metodo_pago = 'transferencia' THEN v.total ELSE 0 END
+        ), 0) AS ventas_transferencia,
+
+        COALESCE(SUM(
+          CASE WHEN v.metodo_pago = 'tarjeta' THEN v.total ELSE 0 END
+        ), 0) AS ventas_tarjeta,
+
+        COALESCE(SUM(
+          CASE 
+            WHEN v.metodo_pago = 'tarjeta' 
+            THEN v.total * (config.comision_terminal / 100)
+            ELSE 0 
+          END
+        ), 0) AS comision_tarjeta,
+
+        COUNT(v.id) AS tickets,
+        COALESCE(AVG(v.total), 0) AS ticket_promedio
+      FROM ventas v
+      CROSS JOIN config
+      WHERE v.estatus = 'finalizada'
+        AND v.fecha_hora BETWEEN $1 AND $2
+    ),
+    devoluciones_resumen AS (
+      SELECT
+        COALESCE(SUM(d.total), 0) AS devoluciones
+      FROM devoluciones d
+      WHERE d.estatus = 'finalizada'
+        AND d.fecha_hora BETWEEN $1 AND $2
+    ),
+    stock_resumen AS (
+      SELECT COUNT(i.id) AS stock_bajo
+      FROM inventario i
+      WHERE i.stock_actual <= i.stock_minimo
+    )
     SELECT
-      COALESCE(SUM(v.total), 0) AS ventas,
-      COUNT(v.id) AS tickets,
-      COALESCE(AVG(v.total), 0) AS ticket_promedio,
+      vr.ventas_brutas,
+      vr.ventas_efectivo,
+      vr.ventas_transferencia,
+      vr.ventas_tarjeta,
+      vr.comision_tarjeta,
+      dr.devoluciones,
+
+      (vr.ventas_brutas - dr.devoluciones) AS ventas_netas,
+
       (
-        SELECT COUNT(i.id)
-        FROM inventario i
-        WHERE i.stock_actual <= i.stock_minimo
-      ) AS stock_bajo
-    FROM ventas v
-    WHERE v.estatus = 'finalizada'
-      AND v.fecha_hora BETWEEN $1 AND $2
+        vr.ventas_brutas
+        - dr.devoluciones
+        - vr.comision_tarjeta
+      ) AS utilidad_real_caja,
+
+      vr.tickets,
+      vr.ticket_promedio,
+      sr.stock_bajo
+    FROM ventas_resumen vr
+    CROSS JOIN devoluciones_resumen dr
+    CROSS JOIN stock_resumen sr
   `;
 
   const result = await pool.query(query, [inicio, fin]);

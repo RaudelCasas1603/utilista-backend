@@ -16,6 +16,7 @@
     "@node-escpos/usb-adapter": "^0.3.1",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
+    "exceljs": "^4.4.0",
     "express": "^5.2.1",
     "node-thermal-printer": "^4.6.0",
     "pdf-to-printer": "^5.7.0",

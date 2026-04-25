@@ -3,13 +3,40 @@ const pool = require("../../../config/db");
 async function getReporteResumen(fechaInicio, fechaFin) {
   const resumenRes = await pool.query(
     `
+    WITH config AS (
+      SELECT COALESCE(comision_terminal, 0) AS comision_terminal
+      FROM configuracion_sistema
+      ORDER BY id ASC
+      LIMIT 1
+    )
     SELECT
-      COALESCE(SUM(v.total), 0) AS total_vendido,
+      COALESCE(SUM(v.total), 0) AS ventas_brutas,
+
+      COALESCE(SUM(
+        CASE 
+          WHEN v.metodo_pago = 'tarjeta'
+          THEN v.total * (config.comision_terminal / 100)
+          ELSE 0
+        END
+      ), 0) AS comision_tarjeta,
+
+      (
+        COALESCE(SUM(v.total), 0)
+        -
+        COALESCE(SUM(
+          CASE 
+            WHEN v.metodo_pago = 'tarjeta'
+            THEN v.total * (config.comision_terminal / 100)
+            ELSE 0
+          END
+        ), 0)
+      ) AS total_vendido_neto,
+
       COALESCE(SUM(v.total_articulos), 0) AS total_productos,
       COUNT(*) AS total_tickets,
-      COUNT(DISTINCT v.fecha_hora::date) AS dias_con_venta,
-      COUNT(DISTINCT v.id_cliente) AS clientes_atendidos
+      COUNT(DISTINCT v.fecha_hora::date) AS dias_con_venta
     FROM ventas v
+    CROSS JOIN config
     WHERE v.estatus = 'finalizada'
       AND v.fecha_hora::date BETWEEN $1::date AND $2::date
     `,
@@ -38,19 +65,21 @@ async function getReporteResumen(fechaInicio, fechaFin) {
   const resumen = resumenRes.rows[0];
   const margen = margenRes.rows[0];
 
-  const totalVendido = Number(resumen.total_vendido || 0);
+  const ventasBrutas = Number(resumen.ventas_brutas || 0);
+  const comisionTarjeta = Number(resumen.comision_tarjeta || 0);
+  const totalVendido = Number(resumen.total_vendido_neto || 0);
   const totalMargen = Number(margen.total_margen || 0);
   const totalTickets = Number(resumen.total_tickets || 0);
   const totalProductos = Number(resumen.total_productos || 0);
   const diasConVenta = Number(resumen.dias_con_venta || 0);
-  const clientesAtendidos = Number(resumen.clientes_atendidos || 0);
 
   return {
     totalVendido,
+    ventasBrutas,
+    comisionTarjeta,
     totalMargen,
     totalTickets,
     totalProductos,
-    clientesAtendidos,
     ticketPromedio: totalTickets > 0 ? totalVendido / totalTickets : 0,
     margenPromedio: totalVendido > 0 ? (totalMargen / totalVendido) * 100 : 0,
     diasConVenta,

@@ -123,6 +123,36 @@ async function getReporteInventario(req, res) {
   }
 }
 
+async function exportarReporteInventarioExcel(req, res) {
+  try {
+    const { proveedor = "Todos", tipoReporte = "debajo-minimo" } = req.query;
+
+    const buffer = await service.exportarReporteInventarioExcel({
+      proveedor,
+      tipoReporte,
+    });
+    const fecha = new Date().toISOString().slice(0, 10);
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="reporte-faltantes-${fecha}.xlsx"`,
+    );
+
+    res.send(buffer);
+  } catch (error) {
+    console.error("Error al exportar reporte:", error);
+    res.status(500).json({
+      ok: false,
+      message: "Error al exportar reporte de inventario",
+    });
+  }
+}
+
 module.exports = {
   getInventario,
   getInventarioById,
@@ -132,4 +162,5 @@ module.exports = {
   deleteInventario,
   getProveedoresReporteInventario,
   getReporteInventario,
+  exportarReporteInventarioExcel,
 };

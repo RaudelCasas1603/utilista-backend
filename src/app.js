@@ -16,6 +16,7 @@ const dashboardRoutes = require("./modules/dashboard");
 const movInventarioRoutes = require("./modules/mov_inventario");
 const devolucionesRoutes = require("./modules/devoluciones");
 const corteCajaRoutes = require("./modules/corte-caja");
+const { usuariosRoutes } = require("./modules/usuarios");
 
 const impresionRoutes = require("./modules/impresion/impresion.routes");
 
@@ -59,6 +60,7 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/mov-inventario", movInventarioRoutes);
 app.use("/api/devoluciones", devolucionesRoutes);
 app.use("/api/cortes-caja", corteCajaRoutes);
+app.use("/api/usuarios", usuariosRoutes);
 
 app.use("/api/impresion", impresionRoutes);
 

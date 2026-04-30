@@ -18,7 +18,10 @@ const devolucionesRoutes = require("./modules/devoluciones");
 const corteCajaRoutes = require("./modules/corte-caja");
 const { usuariosRoutes } = require("./modules/usuarios");
 
+const licenciaRoutes = require("./modules/licencia/licencia.routes");
 const impresionRoutes = require("./modules/impresion/impresion.routes");
+
+const validarLicenciaMiddleware = require("./middlewares/licencia.middleware");
 
 const app = express();
 
@@ -47,6 +50,11 @@ app.get("/test-db", async (req, res) => {
   }
 });
 
+app.use("/api/licencia", licenciaRoutes);
+app.use("/api/usuarios", usuariosRoutes);
+
+app.use(validarLicenciaMiddleware);
+
 app.use("/api/productos", productosRoutes);
 app.use("/api/inventario", inventarioRoutes);
 app.use("/api/proveedores", proveedoresRoutes);
@@ -60,7 +68,6 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/mov-inventario", movInventarioRoutes);
 app.use("/api/devoluciones", devolucionesRoutes);
 app.use("/api/cortes-caja", corteCajaRoutes);
-app.use("/api/usuarios", usuariosRoutes);
 
 app.use("/api/impresion", impresionRoutes);
 

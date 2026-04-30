@@ -1,11 +1,29 @@
-const os = require("os");
+const si = require("systeminformation");
 const pool = require("../../config/db");
 
 const LICENCIAS_API_URL =
   process.env.LICENCIAS_API_URL || "http://localhost:4000/api/licencias";
 
-function obtenerHardwareId() {
-  return process.env.HARDWARE_ID || os.hostname();
+async function obtenerHardwareId() {
+  try {
+    const system = await si.system();
+
+    // UUID de la máquina (ideal)
+    if (system.uuid && system.uuid !== "-") {
+      return system.uuid;
+    }
+
+    // fallback a serial
+    if (system.serial) {
+      return system.serial;
+    }
+
+    // fallback final
+    return require("os").hostname();
+  } catch (error) {
+    console.error("Error obteniendo hardware ID:", error);
+    return require("os").hostname();
+  }
 }
 
 const obtenerEstadoLicencia = async () => {
@@ -39,7 +57,7 @@ const activarLicencia = async (licencia_key) => {
     throw new Error("La clave de licencia es obligatoria");
   }
 
-  const hardware_id = obtenerHardwareId();
+  const hardware_id = await obtenerHardwareId();
 
   const response = await fetch(`${LICENCIAS_API_URL}/activar`, {
     method: "POST",
@@ -95,7 +113,7 @@ const validarLicencia = async () => {
   }
 
   const licencia = estadoLocal.licencia;
-  const hardware_id = obtenerHardwareId();
+  const hardware_id = await obtenerHardwareId();
 
   const hoy = new Date();
   const fechaFin = licencia.fecha_fin ? new Date(licencia.fecha_fin) : null;

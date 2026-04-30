@@ -22,7 +22,8 @@
     "node-thermal-printer": "^4.6.0",
     "pdf-to-printer": "^5.7.0",
     "pg": "^8.20.0",
-    "sharp": "^0.34.5"
+    "sharp": "^0.34.5",
+    "systeminformation": "^5.31.5"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"
